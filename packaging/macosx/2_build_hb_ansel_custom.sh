@@ -14,7 +14,7 @@ scriptDir=$(pwd)
 
 # Set variables
 buildDir="${scriptDir}/../../build"
-installDir="${buildDir}/macosx"
+installDir="${scriptDir}/../../install"
 
 homebrewHome=$(brew --prefix)
 
@@ -33,7 +33,7 @@ cd "$buildDir"
 
 # Configure build
 cmake .. \
-    -DCMAKE_OSX_DEPLOYMENT_TARGET=13.5 \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET=15.4 \
     -DCMAKE_CXX_FLAGS=-stdlib=libc++ \
     -DCMAKE_OBJCXX_FLAGS=-stdlib=libc++ \
     -DBINARY_PACKAGE_BUILD=ON \
@@ -44,8 +44,8 @@ cmake .. \
     -DUSE_BUNDLED_LUA=OFF \
     -DUSE_LIBRAW=ON \
     -DUSE_BUNDLED_LIBRAW=OFF \
-    -DUSE_GRAPHICSMAGICK=OFF \
-    -DUSE_IMAGEMAGICK=ON \
+    -DUSE_GRAPHICSMAGICK=ON \
+    -DUSE_IMAGEMAGICK=OFF \
     -DBUILD_SSE2_CODEPATHS=OFF \
     -DCMAKE_BUILD_TYPE=Release \
     -DUSE_COLORD=OFF \

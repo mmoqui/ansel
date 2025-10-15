@@ -12,14 +12,25 @@
 # mkdir build
 cd build
 
-#TODO figure out how to get icu4c building properly
-#TODO make sure to SSE2_CODEPATHS=OFF for arm64 (see above commented code)
 cmake .. \
     -G $GENERATOR \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX"\
     -DCMAKE_BUILD_TYPE=Release \
-    -DUSE_ICU=Off \
+    -DRAWSPEED_ENABLE_LTO=ON \
+    -DBUILD_CURVE_TOOLS=OFF \
+    -DBUILD_NOISE_TOOLS=OFF \
+    -DUSE_LUA=OFF \
+    -DUSE_BUNDLED_LUA=OFF \
+    -DUSE_LIBRAW=ON \
+    -DUSE_BUNDLED_LIBRAW=OFF \
+    -DUSE_GRAPHICSMAGICK=ON \
+    -DUSE_IMAGEMAGICK=OFF \
     -DBUILD_SSE2_CODEPATHS=OFF \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DUSE_COLORD=OFF \
+    -DUSE_KWALLET=OFF \
+    -DBUILD_CMSTEST=OFF \
+    -DBUILD_BENCHMARKING=OFF \
     -DBINARY_PACKAGE_BUILD=OFF 
 
 cmake --build . --target install
