@@ -53,9 +53,9 @@ jobs:
       - name: Install Base Dependencies
         run: |
           brew update > /dev/null || true
-          brew tap Homebrew/bundle
           cd src/.ci
-          brew bundle --verbose
+          export HOMEBREW_NO_INSTALL_UPGRADE=1
+          brew bundle --verbose || true
           brew link --force libomp libsoup@2
       - name: Update lensfun data
         if: ${{ success() }}
