@@ -1199,6 +1199,7 @@ static const _gpu_runtime_t _gpu_runtimes[] = {
   { "intelocl",         "Intel(R) OpenCL", "intel" },
   { "libnvidia-opencl", "NVIDIA",          "nvidia" },
   { "nvopencl",         "NVIDIA",          "nvidia" },
+  { "OpenCL.framework", "Apple",           "apple" },    // macOS OpenCL-on-Metal shim, see dt_opencl_get_device_available()
   { NULL, NULL, NULL }
 };
 
@@ -3224,7 +3225,18 @@ cl_ulong dt_opencl_get_device_available(const int devid)
     if(system_available > 0)
       available = MIN(available, (cl_ulong)((system_available > reserved) ? system_available - reserved : 0));
 
-    available = MIN(available, (cl_ulong)(_opencl->dev[devid].max_mem_alloc / 2));
+    /* Limit 2 is Intel's. Apple's OpenCL-on-Metal shim reports a fixed
+     * CL_DEVICE_MAX_MEM_ALLOC_SIZE of 1 GiB -- 1024 MiB on an 8 GB M1 whose global memory
+     * is 5461 MB, so not global/4 -- which this clamp would turn into a 512 MiB budget on
+     * every Mac whatever its RAM, and unified memory on Apple silicon has no per-context
+     * aperture of that kind (Metal's own per-buffer limit is about half the machine). The
+     * two bounds above track real memory and keep refusing what does not fit: measured on
+     * the 8 GB M1, the harmonic highlights working set (2392 MiB) is still sent to the CPU
+     * by the live-RAM bound, correctly. Measured on that M1 only; a 16+ GB Mac owes the
+     * symmetric measurement the P630 got before this is trusted there. */
+    const char *runtime = _opencl->dev[devid].runtime_id;
+    const gboolean apple_shim = !IS_NULL_PTR(runtime) && !strcmp(runtime, "apple");
+    if(!apple_shim) available = MIN(available, (cl_ulong)(_opencl->dev[devid].max_mem_alloc / 2));
   }
   return available;
 }
