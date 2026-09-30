@@ -66,6 +66,9 @@ jobs:
       DARKTABLE_CLI: ${{ github.workspace }}/AppDir/usr/bin/ansel-cli
       BRANCH: ${{ matrix.branch.code }}
       BUILD_NAME: ${{ matrix.branch.label }}
+      # TEMPORARY (testers' build): a channel of its own, so the in-app update check -- which
+      # only runs for "nightly" -- does not offer to replace this build with a nightly.
+      BUILD_CHANNEL: testing
     steps:
       - name: Enable Ubuntu repositories
         run: |
@@ -128,49 +131,46 @@ jobs:
           path: ${{ env.SRC_DIR }}/build/Ansel-*-x86_64.AppImage*
           retention-days: 90
 
+  # TEMPORARY (testers' build): publishes the AppImage to a pre-release of the repository
+  # the workflow runs in, named after the branch. No Matrix notice, no monthly nightly tag.
+  # To be removed with the commit that added it.
   upload_to_release:
     runs-on: ubuntu-latest
-    env:
-      REPO: "https://github.com/aurelienpierreeng/ansel"
-      ROOM: "!SgRYbzspwqwwUgSQHC:matrix.org"
     needs: Linux
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: test-${{ github.ref_name }}
     steps:
-      # One pre-release per month instead of one for all time: GitHub caps a release at
-      # 1000 assets, and five formats a night filled the rolling v0.0.0 in under a year.
-      # Releases themselves, total size and bandwidth are unlimited, so rotating the tag
-      # is the whole fix. nightly-prune.yml deletes months older than the retention window.
-      - name: Compute the release tag
-        run: echo "TAG=nightly-$(date -u +%Y-%m)" >> "$GITHUB_ENV"
-      - name: Checkout ansel source
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-          submodules: false
-
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: ansel.stable.AppImage
-      - name: Update nightly release
-        uses: aurelienpierreeng/tip@master
-        with:
-          tag: ${{ env.TAG }}
-          rm: false
-          token: ${{ secrets.GITHUB_TOKEN }}
-          files: Ansel-*.AppImage*
-
-      - name: Install dependencies
+      # GitHub stores an asset name reduced to [A-Za-z0-9._-]: the `~' and `+' a version
+      # string carries are filed as `.'. Renaming here gives the file the name the release
+      # will use, so the check below can find it.
+      - name: Name the package the way the release will
         run: |
-          python -m pip install simplematrixbotlib
-
-      - name: Notify Matrix
-        if: ${{ success() }}
+          for f in Ansel-*.AppImage; do
+            [ -e "${f}" ] || continue
+            g="$(printf '%s' "${f}" | sed 's/[^A-Za-z0-9._-]/./g')"
+            [ "${f}" = "${g}" ] || mv -- "${f}" "${g}"
+          done
+          ls -l Ansel-*.AppImage
+      - name: Publish to the test pre-release
         run: |
-          FILENAME=$(tr '~' '.' <<< "$(find . -type f -iname "Ansel-*.AppImage")")
-          MESSAGE="New AppImage [${FILENAME}](${{ env.REPO }}/releases/download/${{ env.TAG }}/${FILENAME}) built"
-          python .ci/matrix.py \
-          -m "$MESSAGE" \
-          -s ${{ secrets.MATRIX_SERVER }} \
-          -u ${{ secrets.MATRIX_USER }} \
-          -t ${{ secrets.MATRIX_ACCESS }} \
-          -r ${{ env.ROOM }}
+          if ! gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release create "${TAG}" --prerelease --target "${GITHUB_SHA}" \
+              --title "Test build: ${GITHUB_REF_NAME}" \
+              --notes "Test build of branch ${GITHUB_REF_NAME}. Not a release."
+          fi
+          gh release upload "${TAG}" Ansel-*.AppImage --clobber
+      - name: Check the package reached the release
+        run: |
+          published="$(gh release view "${TAG}" --json assets --jq '.assets[].name')"
+          for f in Ansel-*.AppImage; do
+            grep -Fxq -- "${f}" <<< "${published}" || { echo "NOT published: ${f}" >&2; exit 1; }
+            echo "published: https://github.com/${GH_REPO}/releases/download/${TAG}/${f}"
+          done
